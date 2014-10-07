@@ -61,8 +61,8 @@ private:
 		CacheNode() : tag(0), dirty(0), isPrefetch(0), usefulPrefetch(0) {}
 		CacheNode(uint64_t addrTag, unsigned int addrIdx) : tag(addrTag), idx(addrIdx),
 			dirty(false), isPrefetch(false), usefulPrefetch(false) {}
-		CacheNode(uint64_t addrTag, unsigned int addrIdx, bool pref) : tag(addrTag), idx(addrIdx),
-			dirty(false), isPrefetch(pref), usefulPrefetch(false) {}
+//		CacheNode(uint64_t addrTag, unsigned int addrIdx, bool pref) : tag(addrTag), idx(addrIdx),
+//			dirty(false), isPrefetch(pref), usefulPrefetch(false) {}
 	};
 	vector<list<CacheNode>> cacheSets;
 	list<CacheNode> victimCache;

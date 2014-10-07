@@ -24,12 +24,14 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 #if DEBUGL1
 		cout << " Hit!" << endl;
 #endif
+
 		// hit on a prefetched block
 		if (l1beg->isPrefetch) {
 			// first hit on a prefetched block, update count of useful prefetches
 #if DEBUGL1
 			cout << "Pref hit: " << addrTag << " " << addrIdx << endl;
 #endif
+			// update useful prefetch bit and increment count
 			if (!l1beg->usefulPrefetch) {
 				l1beg->usefulPrefetch = true;
 				++result.useful_prefetches;
@@ -38,25 +40,28 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			// don't do anything if hit on an already hit prefetched block
 			// neither updating useful count nor promote to MRU
 		}
-		// hit on a normal block, promote to MRU position
-		else
-			cacheSets[addrIdx].splice(cacheSets[addrIdx].begin(), cacheSets[addrIdx], l1beg);
+
+		// update dirty bit on write hit
+		if (rw == WRITE) l1beg->dirty = true;
+
+		// promote to MRU position on hit
+		cacheSets[addrIdx].splice(cacheSets[addrIdx].begin(), cacheSets[addrIdx], l1beg);
 	}
 
 	// ========== victim cache logic ===============
 
-	// probe the VC cache
-	else if (v) { // L1 miss with vc enabled
+	// L1 miss when vc enabled: probe the VC cache
+	else if (v) {
 #if DEBUGL1
 		cout << " Miss!" << endl;
 #endif
+		++result.misses;
 #if DEBUGVC
 		cout << hex << endl;
 		cout << "Index: " << addrIdx << " Tag: " << addrTag << " Miss!" << endl;
 		cout << "VC: ";
 		for (auto it : victimCache) cout << (it.tag << (c-b-s)) + it.idx << "; ";
 #endif
-		++result.misses;
 		list<CacheNode>::iterator vcbeg = victimCache.begin(); // iterator in vimtim cache
 		while (vcbeg != victimCache.end() && (vcbeg->idx != addrIdx || vcbeg->tag != addrTag)) {
 			++vcbeg;
@@ -68,6 +73,8 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cout << "VC swap: " << (vcbeg->tag << (c - b - s)) + vcbeg->idx;
 			cout << " with " << (cacheSets[addrIdx].back().tag << (c - b - s)) + cacheSets[addrIdx].back().idx << endl;
 #endif
+			// update dirty bit
+			if (rw == WRITE) vcbeg->dirty = true;
 			// switch hit block in vc with LRU block in L1
 			// cacheSets[addrIdx] must be full, otherwise current block wouldn't be found in vc
 			// thus cacheSets[addrIdx].back() exists
@@ -97,12 +104,15 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 				cacheSets[addrIdx].pop_back(); // evict the LRU block from L1 cache
 			}
 			cacheSets[addrIdx].push_front(CacheNode(addrTag, addrIdx));
+			// update the dirty bit after insertion
+			if (rw == WRITE) cacheSets[addrIdx].front().dirty = true;
 		}
 	}
 	// ========== end of victim cache ===============
 
-	// L1 insertion from main memory
-	else { // L1 miss with vc disabled
+	// L1 miss when vc disabled
+	// L1 insertion directly from main memory
+	else {
 #if DEBUGL1
 		cout << " Miss!" << endl;
 #endif
@@ -113,16 +123,15 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cacheSets[addrIdx].pop_back();
 		}
 		cacheSets[addrIdx].push_front(CacheNode(addrTag, addrIdx));
+		// update dirty bit after fetch the block
+		if (rw == WRITE) cacheSets[addrIdx].front().dirty = true;
 	}
-
-	// update dirty bit
-	if (rw == WRITE) cacheSets[addrIdx].front().dirty = true; // set dirty bit whenever write to a block
 
 	// ========== prefetch logic after insertion =====
 
 	// PREFETCH WITHOUT VC AT THIS TIME. LRU PREFETCHED BLOCKS ARE DIRECTLY EVICTED FROM L1
 
-	// examine prefecher when there's an access miss (L1 or VC)
+	// check prefecher when there's an access miss (L1 or VC)
 	if (k && result.misses) {
 		// shifted block address shifted! without LSBs for block offset
 		bool d_sign = (address >> b) > last_miss;
@@ -130,11 +139,13 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 
 		// check prefether
 		if (d_sign == stride_sign && d == pending_stride) {
+			// increment prefetched_blocks K times every time the prefetcher is triggered
+			result.prefetch_blocks += k;
 #if DEBUGPREF
 			cout << "Prefetch begin! d = " << (d_sign ? "+" : "-") << d << endl;
 			cout << "Miss block: " << (addrTag << (c-b-s)) + addrIdx << endl;
 #endif
-			uint64_t prefetch_block = (address >> b);
+			uint64_t prefetch_addr = (address >> b);
 			uint64_t prefetch_tag;
 			unsigned int prefetch_index;
 
@@ -142,11 +153,11 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			for (int i = 0; i != k; ++i) {
 				// calculate prefetch address
 				if (d_sign)
-					prefetch_block += d;
+					prefetch_addr += d;
 				else
-					prefetch_block -= d;
-				prefetch_index = (prefetch_block & ((1 << (c - s - b)) - 1));
-				prefetch_tag = prefetch_block >> (c - s - b);
+					prefetch_addr -= d;
+				prefetch_index = (prefetch_addr & ((1 << (c - s - b)) - 1));
+				prefetch_tag = prefetch_addr >> (c - s - b);
 #if DEBUGPREF
 				cout << "Pref block: " << prefetch_tag << " " << prefetch_index << endl;
 #endif
@@ -155,16 +166,17 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 				list<CacheNode>::iterator prefbeg = cacheSets[prefetch_index].begin();
 				while (prefbeg != cacheSets[prefetch_index].end() && prefbeg->tag != prefetch_tag) ++prefbeg;
 
-				// doesn't exist, prefetch
+				// if the block is already in L1 cache, don't do anything
+				// if not, find the LRU block and replace it with the prefetched block, also set the prefech bit
 				if (prefbeg == cacheSets[prefetch_index].end()) {
 					if (cacheSets[prefetch_index].size() == setCap) { // evict LRU block
 						if (cacheSets[prefetch_index].back().dirty)
 							++result.writebacks;
 						cacheSets[prefetch_index].pop_back();
 					}
-					// insert as LRU? could be kicked out immediately when inserting the next pref
-					cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index, true));
-					++result.prefetch_blocks;
+					// insert as LRU, could be kicked out immediately when next pref arrives
+					cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index));
+					cacheSets[prefetch_index].back().isPrefetch = true;
 				}
 			}
 		}

@@ -6,7 +6,7 @@
 #include <vector>
 #include <list>
 
-#include <iostream>
+// #include <iostream>
 
 using namespace std;
 
@@ -36,10 +36,10 @@ struct cache_access_t {
 
 class CacheSim {
 public:
-	CacheSim() : c(0), b(0), s(0), v(0), k(0), setCap(0) {}
+	CacheSim() : c(0), b(0), s(0), v(0), k(0), set_capacity(0) {}
 	CacheSim(uint64_t c, uint64_t b, uint64_t s, uint64_t v, uint64_t k) : c(c), b(b), s(s), v(v), k(k),
 		// # blocks per set: 2 ^ s -> set capacity
-		setCap(1 << s),
+		set_capacity(1 << s),
 		// total # blocks: 2 ^ (c - b)
 		// # sets: 2 ^ (c - b - s)
 		cacheSets(vector<list<CacheNode>>(1 << (c - b - s))),
@@ -50,18 +50,28 @@ public:
 	uint64_t getS() { return s; }
 private:
 	uint64_t c, b, s, v, k;
-	uint64_t setCap;
-	struct CacheNode {
+	uint64_t set_capacity;
+	struct CacheNode { // block in L1 cache, saves index storage
+		uint64_t tag;
+		bool dirty;
+		bool isPrefetch;
+		CacheNode() : tag(0), dirty(false), isPrefetch(false) {}
+		// fetch from main memory, only need to supply tag value
+		CacheNode(uint64_t addrTag) : tag(addrTag), dirty(false), isPrefetch(false) {}
+		// fetch from victim cache
+		CacheNode(uint64_t addrTag, bool dir, bool pref) : tag(addrTag), dirty(dir), isPrefetch(pref) {}
+	};
+	struct VCNode { // block in victim cache
 		uint64_t tag;
 		unsigned int idx;
 		bool dirty;
 		bool isPrefetch;
-		CacheNode() : tag(0), dirty(0), isPrefetch(0) {}
-		CacheNode(uint64_t addrTag, unsigned int addrIdx) : tag(addrTag), idx(addrIdx),
-			dirty(false), isPrefetch(false) {}
+		VCNode() : tag(0), idx(0), dirty(false), isPrefetch(false) {}
+		VCNode(CacheNode block, unsigned int index) : tag(block.tag), idx(index),
+			dirty(block.dirty), isPrefetch(block.isPrefetch) {}
 	};
 	vector<list<CacheNode>> cacheSets;
-	list<CacheNode> victimCache;
+	list<VCNode> victimCache;
 	uint64_t last_miss;
 	uint64_t pending_stride;
 	bool stride_sign; // 1 for positive and 0 for negative
@@ -103,11 +113,12 @@ static const char     READ = 'r';
 /** Argument to cache_access rw. Indicates a store */
 static const char     WRITE = 'w';
 
-/** Return value of cache access MODE. */
-static const int     HIT_NORMAL = 0;
-static const int     HIT_USEFUL = 1;
-static const int     VC_HIT = 2;
-static const int     MISS_NWB = 3;
-static const int     MISS_WB = 4;
+/** Status of dirty bit */
+static const bool     CLEAN = false;
+static const bool     DIRTY = true;
+
+/** Status of prefetch bit */
+static const bool     PREFETCH = true;
+static const bool     NONPREFETCH = false;
 
 #endif /* CACHESIM_HPP */

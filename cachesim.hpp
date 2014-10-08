@@ -42,7 +42,6 @@ public:
 		setCap(1 << s),
 		// total # blocks: 2 ^ (c - b)
 		// # sets: 2 ^ (c - b - s)
-//		cacheSets(vector<list<CacheNode>>(1 << (c - b - s), list<CacheNode>(1 << s))),
 		cacheSets(vector<list<CacheNode>>(1 << (c - b - s))),
 		// initial prefetch values set to zero
 		last_miss(0), pending_stride(0), stride_sign(true) {}
@@ -57,12 +56,9 @@ private:
 		unsigned int idx;
 		bool dirty;
 		bool isPrefetch;
-		bool usefulPrefetch;
-		CacheNode() : tag(0), dirty(0), isPrefetch(0), usefulPrefetch(0) {}
+		CacheNode() : tag(0), dirty(0), isPrefetch(0) {}
 		CacheNode(uint64_t addrTag, unsigned int addrIdx) : tag(addrTag), idx(addrIdx),
-			dirty(false), isPrefetch(false), usefulPrefetch(false) {}
-//		CacheNode(uint64_t addrTag, unsigned int addrIdx, bool pref) : tag(addrTag), idx(addrIdx),
-//			dirty(false), isPrefetch(pref), usefulPrefetch(false) {}
+			dirty(false), isPrefetch(false) {}
 	};
 	vector<list<CacheNode>> cacheSets;
 	list<CacheNode> victimCache;

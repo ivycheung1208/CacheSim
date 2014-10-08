@@ -32,13 +32,8 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cout << "Pref hit: " << addrTag << " " << addrIdx << endl;
 #endif
 			// update useful prefetch bit and increment count
-			if (!l1beg->usefulPrefetch) {
-				l1beg->usefulPrefetch = true;
-				++result.useful_prefetches;
-			}
-			// else ;
-			// don't do anything if hit on an already hit prefetched block
-			// neither updating useful count nor promote to MRU
+			++result.useful_prefetches;
+			l1beg->isPrefetch = false;
 		}
 
 		// update dirty bit on write hit
@@ -47,6 +42,8 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 		// promote to MRU position on hit
 		cacheSets[addrIdx].splice(cacheSets[addrIdx].begin(), cacheSets[addrIdx], l1beg);
 	}
+
+
 
 	// ========== victim cache logic ===============
 
@@ -72,10 +69,16 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cout << "VC Hit!" << endl;
 			cout << "VC swap: " << (vcbeg->tag << (c - b - s)) + vcbeg->idx;
 			cout << " with " << (cacheSets[addrIdx].back().tag << (c - b - s)) + cacheSets[addrIdx].back().idx << endl;
+			for (auto it : victimCache) cout << (it.tag << (c - b - s)) + it.idx << "; ";
 #endif
+			// check whether its a prefetch block in VC
+			if (vcbeg->isPrefetch) {
+				++result.useful_prefetches;
+				vcbeg->isPrefetch = false;
+			}
 			// update dirty bit
 			if (rw == WRITE) vcbeg->dirty = true;
-			// switch hit block in vc with LRU block in L1
+			// swap hit block in vc with LRU block in L1 and then make it MRU
 			// cacheSets[addrIdx] must be full, otherwise current block wouldn't be found in vc
 			// thus cacheSets[addrIdx].back() exists
 			CacheNode temp = *vcbeg;
@@ -89,6 +92,8 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cout << "VC Miss!" << endl;
 #endif
 			++result.vc_misses;
+
+			// evict block from VC when both VC and L1 cache set are full
 			if (cacheSets[addrIdx].size() == setCap && victimCache.size() == v) {
 #if DEBUGVC
 				cout << "VC evict: " << (victimCache.front().tag << (c-b-s)) + victimCache.front().idx << endl;
@@ -96,19 +101,47 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 				if (victimCache.front().dirty) ++result.writebacks; // writeback if the evicted block from VC is dirty
 				victimCache.pop_front(); // evict the first block from VC
 			}
+
+			// move LRU block from L1 to VC when L1 cache set is full and VC is not
 			if (cacheSets[addrIdx].size() == setCap) {
 #if DEBUGVC
 				cout << "VC insert: " << (cacheSets[addrIdx].back().tag << (c-b-s)) + cacheSets[addrIdx].back().idx << endl;
 #endif
 				victimCache.push_back(cacheSets[addrIdx].back()); // insert the LRU block in the L1 cache into VC
+#if DEBUGVC
+				for (auto it : victimCache) cout << (it.tag << (c - b - s)) + it.idx << "; ";
+#endif
 				cacheSets[addrIdx].pop_back(); // evict the LRU block from L1 cache
 			}
+
+			// fetch block from main memory to L1 cache
 			cacheSets[addrIdx].push_front(CacheNode(addrTag, addrIdx));
+
+			// alternative fetch approach!
+/*			if (cacheSets[addrIdx].size() != setCap) {
+				cacheSets[addrIdx].push_front(CacheNode(addrTag, addrIdx));
+			}
+			else {
+				CacheNode temp = cacheSets[addrIdx].back();
+				cacheSets[addrIdx].pop_back();
+				cacheSets[addrIdx].push_front(CacheNode(addrTag, addrIdx));
+				if (victimCache.size() != v) {
+					victimCache.push_back(temp);
+				}
+				else {
+					if (victimCache.front().dirty) ++result.writebacks;
+					victimCache.pop_front();
+					victimCache.push_back(temp);
+				}
+			}*/
+
 			// update the dirty bit after insertion
 			if (rw == WRITE) cacheSets[addrIdx].front().dirty = true;
 		}
 	}
 	// ========== end of victim cache ===============
+
+
 
 	// L1 miss when vc disabled
 	// L1 insertion directly from main memory
@@ -127,9 +160,13 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 		if (rw == WRITE) cacheSets[addrIdx].front().dirty = true;
 	}
 
+
+
 	// ========== prefetch logic after insertion =====
 
-	// PREFETCH WITHOUT VC AT THIS TIME. LRU PREFETCHED BLOCKS ARE DIRECTLY EVICTED FROM L1
+	// 1) Prefetch with VC disabled first. LRU block from L1 is directly evicted from cache
+	
+	// 2) Prefetch with VC enabled: LRU block from L1 goes into VC and VC performs FIFO
 
 	// check prefecher when there's an access miss (L1 or VC)
 	if (k && result.misses) {
@@ -145,6 +182,7 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 			cout << "Prefetch begin! d = " << (d_sign ? "+" : "-") << d << endl;
 			cout << "Miss block: " << (addrTag << (c-b-s)) + addrIdx << endl;
 #endif
+			// initialize prefetch address, index and tag (set at the missing address)
 			uint64_t prefetch_addr = (address >> b);
 			uint64_t prefetch_tag;
 			unsigned int prefetch_index;
@@ -162,19 +200,90 @@ cache_access_t CacheSim::cacheAccess(char rw, uint64_t address) {
 				cout << "Pref block: " << prefetch_tag << " " << prefetch_index << endl;
 #endif
 
-				// check whether it already exists in the cache!
+				// first check whether it already exists in the cache
 				list<CacheNode>::iterator prefbeg = cacheSets[prefetch_index].begin();
 				while (prefbeg != cacheSets[prefetch_index].end() && prefbeg->tag != prefetch_tag) ++prefbeg;
 
 				// if the block is already in L1 cache, don't do anything
-				// if not, find the LRU block and replace it with the prefetched block, also set the prefech bit
-				if (prefbeg == cacheSets[prefetch_index].end()) {
-					if (cacheSets[prefetch_index].size() == setCap) { // evict LRU block
+#if DEBUGPREF
+				if (prefbeg != cacheSets[prefetch_index].end())
+					std::cout << "Prefetch found in L1!" << endl;
+#endif
+
+				// with VC enabled, if the block is not in L1, check whether it exists in the VC
+				if (v && prefbeg == cacheSets[prefetch_index].end()) {
+					list<CacheNode>::iterator prefvcbeg = victimCache.begin();
+#if DEBUGPREF
+					std::cout << "Prefetch address: " << (prefetch_tag << (c - b - s)) + prefetch_index << endl;
+					std::cout << "Check VC: ";
+					for (auto it : victimCache)
+						std::cout << (it.tag << (c - b - s)) + it.idx << "; ";
+					std::cout << endl;
+#endif
+					while (prefvcbeg != victimCache.end() && (prefvcbeg->idx != prefetch_index || prefvcbeg->tag != prefetch_tag))
+						++prefvcbeg;
+					
+					// if the block is in VC, swap with corresponding LRU block in L1 cache and set prefetch bit
+					if (prefvcbeg != victimCache.end()) {
+#if DEBUGPREF
+						std::cout << "Prefetch found in VC!" << endl;
+						// Never hit in the default setting!
+#endif
+						CacheNode temp = *prefvcbeg;
+						*prefvcbeg = cacheSets[prefetch_index].back();
+						cacheSets[prefetch_index].pop_back();
+						cacheSets[prefetch_index].push_back(temp);
+						cacheSets[prefetch_index].back().isPrefetch = true;
+					}
+					
+					// if the block is not in L1 or VC, prefetch from main memory
+					// replace the LRU block with the prefetched block and set the prefech bit
+					// LRU block goes into VC following FIFO
+					else {
+						// evict block from VC when both VC and L1 cache set are full
+						if (victimCache.size() == v && cacheSets[prefetch_index].size() == setCap) {
+							if (victimCache.front().dirty) ++result.writebacks;
+							victimCache.pop_front();
+						}
+						// move LRU block to VC when L1 cache set is full and VC is not
+						if (cacheSets[prefetch_index].size() == setCap) {
+// ***** should be push_back!! *****
+							victimCache.push_back(cacheSets[prefetch_index].back());
+							cacheSets[prefetch_index].pop_back();
+						}
+						// insert prefetched block at LRU position
+						cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index));
+						cacheSets[prefetch_index].back().isPrefetch = true;
+
+						// alternative prefetch approach
+/*						if (cacheSets[prefetch_index].size() != setCap) {
+							cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index));
+							cacheSets[prefetch_index].back().isPrefetch = true;
+						}
+						else {
+							CacheNode temp = cacheSets[prefetch_index].back();
+							cacheSets[prefetch_index].pop_back();
+							cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index));
+							cacheSets[prefetch_index].back().isPrefetch = true;
+							if (victimCache.size() != v) {
+								victimCache.push_back(temp);
+							}
+							else {
+								if (victimCache.front().dirty) ++result.writebacks;
+								victimCache.pop_front();
+								victimCache.push_back(temp);
+							}
+						}*/
+					}	
+				}
+
+				// with VC disabled, evict LRU when cache set is full, then prefetch
+				else if (prefbeg == cacheSets[prefetch_index].end()) {
+					if (cacheSets[prefetch_index].size() == setCap) {
 						if (cacheSets[prefetch_index].back().dirty)
 							++result.writebacks;
 						cacheSets[prefetch_index].pop_back();
 					}
-					// insert as LRU, could be kicked out immediately when next pref arrives
 					cacheSets[prefetch_index].push_back(CacheNode(prefetch_tag, prefetch_index));
 					cacheSets[prefetch_index].back().isPrefetch = true;
 				}

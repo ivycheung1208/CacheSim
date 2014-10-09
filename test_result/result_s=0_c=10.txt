@@ -1,0 +1,121 @@
+astar.trace
+
+Cache Settings
+C: 10
+B: 5
+S: 0
+V: 4
+K: 2
+
+
+Cache Statistics
+Accesses: 501468
+Reads: 289766
+Read misses: 53428
+Read misses combined: 45374
+Writes: 211702
+Write misses: 38639
+Write misses combined: 35202
+Misses: 92067
+Writebacks: 53032
+Victim cache misses: 80576
+Prefetched blocks: 16446
+Useful prefetches: 14833
+Bytes transferred to/from memory: 4801728
+Hit Time: 2.000000
+Miss Penalty: 200
+Miss rate: 0.183595
+Average access time (AAT): 34.136049
+
+
+
+bzip2.trace
+
+Cache Settings
+C: 10
+B: 5
+S: 0
+V: 4
+K: 2
+
+
+Cache Statistics
+Accesses: 544514
+Reads: 369344
+Read misses: 26546
+Read misses combined: 10502
+Writes: 175170
+Write misses: 13567
+Write misses combined: 4902
+Misses: 40113
+Writebacks: 5106
+Victim cache misses: 15404
+Prefetched blocks: 40
+Useful prefetches: 6
+Bytes transferred to/from memory: 657600
+Hit Time: 2.000000
+Miss Penalty: 200
+Miss rate: 0.073668
+Average access time (AAT): 7.657889
+
+
+
+mcf.trace
+
+Cache Settings
+C: 10
+B: 5
+S: 0
+V: 4
+K: 2
+
+
+Cache Statistics
+Accesses: 507700
+Reads: 280182
+Read misses: 52977
+Read misses combined: 43722
+Writes: 227518
+Write misses: 41897
+Write misses combined: 39816
+Misses: 94874
+Writebacks: 50144
+Victim cache misses: 83538
+Prefetched blocks: 3946
+Useful prefetches: 905
+Bytes transferred to/from memory: 4404096
+Hit Time: 2.000000
+Miss Penalty: 200
+Miss rate: 0.186870
+Average access time (AAT): 34.908410
+
+
+
+perlbench.trace
+
+Cache Settings
+C: 10
+B: 5
+S: 0
+V: 4
+K: 2
+
+
+Cache Statistics
+Accesses: 507441
+Reads: 302052
+Read misses: 96154
+Read misses combined: 76518
+Writes: 205389
+Write misses: 39073
+Write misses combined: 27071
+Misses: 135227
+Writebacks: 51013
+Victim cache misses: 103589
+Prefetched blocks: 4688
+Useful prefetches: 3051
+Bytes transferred to/from memory: 5097280
+Hit Time: 2.000000
+Miss Penalty: 200
+Miss rate: 0.266488
+Average access time (AAT): 42.827998

@@ -19,9 +19,6 @@ void print_help_and_exit(void) {
 void print_statistics(cache_stats_t* p_stats);
 
 int main(int argc, char* argv[]) {
-	//uint64_t test;
-	//test = (1 << 3) - 1;
-	//printf("%" PRIu64 "\n", test);
     int opt;
     uint64_t c = DEFAULT_C;
     uint64_t b = DEFAULT_B;
@@ -59,25 +56,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-/*    printf("Cache Settings\n");
+    printf("Cache Settings\n");
     printf("C: %" PRIu64 "\n", c);
     printf("B: %" PRIu64 "\n", b);
     printf("S: %" PRIu64 "\n", s);
     printf("V: %" PRIu64 "\n", v);
 	printf("K: %" PRIu64 "\n", k);
     printf("\n");
-*/
-	printf("Settings: (%" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ")\n", c, b, s, v, k);
-
-	/* calculate memory budge */
-	uint64_t data_storage = (1 << b) * 8;
-	//	printf("data storage: %" PRIu64 "\n", data_storage);
-	uint64_t cache_memory = (1 << (c - b)) * (64 - c + s + 2 + data_storage);
-	//	printf("cache memory: %" PRIu64 "\n", cache_memory);
-	uint64_t vc_memory = v * (64 - b + 2 + data_storage);
-	//	printf("vc memory: %" PRIu64 "\n", vc_memory);
-	double total_memory_kb = (cache_memory + vc_memory) / double((1 << 10) * 8);
-	printf("Mem: %f KB\n", total_memory_kb);
 
     /* Setup the cache */
     setup_cache(c, b, s, v, k);
@@ -104,8 +89,7 @@ int main(int argc, char* argv[]) {
 }
 
 void print_statistics(cache_stats_t* p_stats) {
-/*	printf("\n");
-	printf("Cache Statistics\n");
+    printf("Cache Statistics\n");
     printf("Accesses: %" PRIu64 "\n", p_stats->accesses);
     printf("Reads: %" PRIu64 "\n", p_stats->reads);
     printf("Read misses: %" PRIu64 "\n", p_stats->read_misses);
@@ -122,8 +106,6 @@ void print_statistics(cache_stats_t* p_stats) {
 	printf("Hit Time: %f\n", p_stats->hit_time);
     printf("Miss Penalty: %" PRIu64 "\n", p_stats->miss_penalty);
     printf("Miss rate: %f\n", p_stats->miss_rate);
-	printf("Average access time (AAT): %f\n", p_stats->avg_access_time);
-*/
-	printf("AAT: %f\n", p_stats->avg_access_time);
+    printf("Average access time (AAT): %f\n", p_stats->avg_access_time);
 }
 

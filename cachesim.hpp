@@ -8,7 +8,8 @@
 
 // #include <iostream>
 
-using namespace std;
+using std::vector;
+using std::list;
 
 // Debug mode for L1 cache
 #ifndef DEBUGL1
@@ -107,6 +108,8 @@ static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */
 static const uint64_t DEFAULT_S = 3;    /* 8 blocks per set */
 static const uint64_t DEFAULT_V = 4;    /* 4 victim blocks */
 static const uint64_t DEFAULT_K = 2;	/* 2 prefetch distance */
+
+static const double AAT_MAX = 1000;
 
 /** Argument to cache_access rw. Indicates a load */
 static const char     READ = 'r';

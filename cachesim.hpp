@@ -6,25 +6,8 @@
 #include <vector>
 #include <list>
 
-// #include <iostream>
-
 using std::vector;
 using std::list;
-
-// Debug mode for L1 cache
-#ifndef DEBUGL1
-#define DEBUGL1 0
-#endif
-
-// Debug mode for victim cache
-#ifndef DEBUGVC
-#define DEBUGVC 0
-#endif
-
-// Debug mode for prefetch
-#ifndef DEBUGPREF
-#define DEBUGPREF 0
-#endif
 
 // return struct for cache access function
 struct cache_access_t {

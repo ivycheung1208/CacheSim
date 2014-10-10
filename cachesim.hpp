@@ -26,6 +26,7 @@ using std::list;
 #define DEBUGPREF 0
 #endif
 
+// return struct for cache access function
 struct cache_access_t {
 	int misses;
 	int vc_misses;
@@ -35,6 +36,7 @@ struct cache_access_t {
 	cache_access_t() : misses(0), vc_misses(0), writebacks(0), useful_prefetches(0), prefetch_blocks(0) {}
 };
 
+// class for cache simulation
 class CacheSim {
 public:
 	CacheSim() : c(0), b(0), s(0), v(0), k(0), set_capacity(0) {}
@@ -44,38 +46,49 @@ public:
 		// total # blocks: 2 ^ (c - b)
 		// # sets: 2 ^ (c - b - s)
 		cacheSets(vector<list<CacheNode>>(1 << (c - b - s))),
-		// initial prefetch values set to zero
+		// prefetcher variables initialized to zero
 		last_miss(0), pending_stride(0), stride_sign(true) {}
-	cache_access_t cacheAccess(char rw, uint64_t address);
-	uint64_t getB() { return b; }
-	uint64_t getS() { return s; }
+	cache_access_t cacheAccess(char rw, uint64_t address); // member function that performs cache access
+	uint64_t getC() { return c; } // read-only
+	uint64_t getB() { return b; } // read-only
+	uint64_t getS() { return s; } // read-only
+	uint64_t getV() { return v; } // read-only
+	uint64_t getK() { return k; } // read-only
 private:
 	uint64_t c, b, s, v, k;
-	uint64_t set_capacity;
-	struct CacheNode { // block in L1 cache, saves index storage
+	uint64_t set_capacity; // associativity (2^s)
+	// struct for L1 cache block, stores only tag
+	struct CacheNode {
 		uint64_t tag;
 		bool dirty;
 		bool isPrefetch;
 		CacheNode() : tag(0), dirty(false), isPrefetch(false) {}
-		// fetch from main memory, only need to supply tag value
+		// fetch block from main memory: store tag value
 		CacheNode(uint64_t addrTag) : tag(addrTag), dirty(false), isPrefetch(false) {}
-		// fetch from victim cache
+		// fetch block from victim cache: preserve dirty bit and prefetch bit (manually)
 		CacheNode(uint64_t addrTag, bool dir, bool pref) : tag(addrTag), dirty(dir), isPrefetch(pref) {}
 	};
-	struct VCNode { // block in victim cache
+	// struct for victim cache block, stores both tag and index
+	struct VCNode {
 		uint64_t tag;
 		unsigned int idx;
 		bool dirty;
 		bool isPrefetch;
 		VCNode() : tag(0), idx(0), dirty(false), isPrefetch(false) {}
+		// fetch block from L1 cache: store both tag and index value, preserve dirty bit and prefetch bit
 		VCNode(CacheNode block, unsigned int index) : tag(block.tag), idx(index),
 			dirty(block.dirty), isPrefetch(block.isPrefetch) {}
 	};
-	vector<list<CacheNode>> cacheSets;
+	// block containers: cacheSets, victimCache
+	// each list represents a set in L1 cache, MRU block resides at the front and LRU at the back
+	// the huge vector holds all the lists
+	vector<list<CacheNode>> cacheSets; 
+	// oldest block resides at the front and newest at the back (always insert from the back!)
 	list<VCNode> victimCache;
+	// prefetcher variables: last_miss, pending_stride, stride_sign
 	uint64_t last_miss;
 	uint64_t pending_stride;
-	bool stride_sign; // 1 for positive and 0 for negative
+	bool stride_sign; // 1 is positive and 0 is negative
 };
 
 struct cache_stats_t {
@@ -108,8 +121,6 @@ static const uint64_t DEFAULT_B = 5;    /* 32-byte blocks */
 static const uint64_t DEFAULT_S = 3;    /* 8 blocks per set */
 static const uint64_t DEFAULT_V = 4;    /* 4 victim blocks */
 static const uint64_t DEFAULT_K = 2;	/* 2 prefetch distance */
-
-static const double AAT_MAX = 1000;
 
 /** Argument to cache_access rw. Indicates a load */
 static const char     READ = 'r';
